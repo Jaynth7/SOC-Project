@@ -8,13 +8,13 @@ A Docker Compose project that wires up a scalable SIEM log pipeline using **Redi
 Endpoints (servers, workstations)
         │
         ▼
-  Wazuh Agents              ← You deploy these (Windows/Linux)
+  Wazuh Agents              ← (Windows/Linux)
         │  (AES-encrypted, ports 1514/1515)
         ▼
-  Wazuh Manager              ← You manage this
+  Wazuh Manager              
         │  writes /var/ossec/logs/alerts/alerts.json
         ▼
-  Filebeat                    ← You configure this (see examples/)
+  Filebeat                    
         │  output.redis → RPUSH to list
         ▼
 ┌─────────────────────────────────────────────────────────┐
