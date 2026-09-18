@@ -1,0 +1,63 @@
+# =============================================================================
+# Filebeat Configuration — Redis Output for Wazuh Alerts
+# =============================================================================
+# Deploy this on the host running your Wazuh Manager. Filebeat tails the
+# Wazuh alerts JSON log and pushes each alert into a Redis list, where
+# Logstash picks it up via BRPOP.
+#
+# This is a SAMPLE — adjust paths, hosts, and credentials to your environment.
+#
+# Install Filebeat on the Wazuh Manager host:
+#   https://www.elastic.co/guide/en/beats/filebeat/current/filebeat-installation.html
+# =============================================================================
+
+# ── Input: tail Wazuh alerts ─────────────────────────────────────────────────
+filebeat.inputs:
+  - type: log
+    enabled: true
+    paths:
+      - /var/ossec/logs/alerts/alerts.json
+
+    # Parse the JSON log lines inline so fields are available at root level
+    # rather than stuffed into a raw "message" string.
+    json.keys_under_root: true
+    json.overwrite_keys: true
+    json.add_error_key: true
+
+    # Optional: add fields to identify the source in multi-source pipelines
+    fields:
+      source_type: wazuh
+    fields_under_root: true
+
+# ── Output: push to Redis list ───────────────────────────────────────────────
+# Filebeat's redis output uses RPUSH to append each event to a list key.
+# Logstash drains the same list with BRPOP (redis input plugin).
+#
+# NOTE: Filebeat's redis output supports ONLY:
+#   - data_type: list   (RPUSH — what we use)
+#   - data_type: channel (PUBLISH — pub/sub, not durable)
+# Redis Streams (XADD) are NOT supported by Filebeat or Logstash.
+output.redis:
+  hosts: ["YOUR_REDIS_HOST:6379"]
+  password: "YOUR_REDIS_PASSWORD"
+  key: "wazuh-alerts"
+  data_type: list
+
+  # Retry settings — if Redis is unreachable, Filebeat buffers in memory
+  # and retries. Events are NOT lost during transient Redis outages as long
+  # as the in-memory queue doesn't overflow.
+  bulk_max_size: 2048
+
+# ── Disable Elasticsearch direct output ──────────────────────────────────────
+# Without this, Filebeat tries to ship directly to ES (its default behavior).
+# We want ALL data flowing through Redis → Logstash.
+output.elasticsearch.enabled: false
+
+# ── Logging ──────────────────────────────────────────────────────────────────
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644

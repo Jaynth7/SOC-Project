@@ -1,0 +1,73 @@
+# =============================================================================
+# Redis Hardened Configuration — REFERENCE ONLY
+# =============================================================================
+# This file is NOT deployed by docker-compose. It documents the recommended
+# Redis configuration for use in a SIEM log buffer pipeline.
+#
+# If you're setting up a new Redis instance for this project, apply these
+# settings to your redis.conf. If you already have Redis running, review
+# these against your current config.
+#
+# Pinned version: redis:7.4.3-alpine (fixes CVE-2025-21605)
+# =============================================================================
+
+# ── Network ──────────────────────────────────────────────────────────────────
+bind 0.0.0.0
+# Listen on all interfaces — safe when Redis is on an isolated Docker network.
+# In production, bind to specific interfaces only.
+
+protected-mode yes
+# Requires either a password or explicit bind to a non-loopback interface.
+
+port 6379
+
+# ── Authentication ───────────────────────────────────────────────────────────
+# Password is passed via CLI: redis-server --requirepass ${REDIS_PASSWORD}
+# This keeps the password out of config files that might get committed to git.
+#
+# requirepass is set via the docker run/compose command, NOT here.
+
+# ── Memory ───────────────────────────────────────────────────────────────────
+maxmemory 512mb
+
+maxmemory-policy noeviction
+# CRITICAL: This is a log buffer, NOT a cache. We chose noeviction deliberately:
+#   - With allkeys-lru: Redis silently drops oldest security alerts under
+#     memory pressure. You lose log data without knowing it.
+#   - With noeviction: Redis rejects new writes (Filebeat gets errors, backs
+#     off, buffers locally). This is LOUD — you know immediately something
+#     is wrong (Logstash fell behind, or Redis needs more memory).
+# The tradeoff: under noeviction, a stalled Logstash will eventually cause
+# Filebeat to stop ingesting new alerts. That's better than silently losing them.
+
+# ── Persistence ──────────────────────────────────────────────────────────────
+appendonly yes
+appendfsync everysec
+# AOF (Append-Only File): every write is logged. On crash, you lose at most
+# ~1 second of buffered events. Acceptable for a log pipeline.
+
+# RDB snapshots as secondary/backup persistence
+save 900 1
+save 300 10
+save 60 10000
+
+# ── Security hardening ───────────────────────────────────────────────────────
+rename-command FLUSHALL ""
+rename-command FLUSHDB ""
+rename-command CONFIG ""
+# Disables dangerous commands entirely. Prevents accidental or malicious
+# data wipes and runtime config changes.
+#
+# TRADEOFF: Renaming CONFIG also disables CONFIG GET, which means you can't
+# introspect runtime settings (e.g., `CONFIG GET maxmemory`). If you need
+# runtime introspection, consider renaming to a secret string instead:
+#   rename-command CONFIG "SUPER_SECRET_CONFIG_CMD"
+# and restrict who knows that string.
+
+# ── CVE-2025-21605 mitigation ───────────────────────────────────────────────
+# Unauthenticated clients can trigger unbounded output buffer growth.
+# Pinning to redis:7.4.3-alpine fixes the bug, but these limits are
+# defense-in-depth against similar future issues.
+client-output-buffer-limit normal 64mb 32mb 10
+client-output-buffer-limit replica 256mb 64mb 60
+client-output-buffer-limit pubsub 64mb 32mb 10

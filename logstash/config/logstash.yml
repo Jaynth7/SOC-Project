@@ -1,0 +1,23 @@
+# =============================================================================
+# Logstash Settings
+# =============================================================================
+# Minimal config for the SIEM pipeline. Most settings use sensible defaults.
+# See: https://www.elastic.co/guide/en/logstash/current/logstash-settings-file.html
+# =============================================================================
+
+# Bind the Logstash HTTP API (used for health checks, stats)
+http.host: "0.0.0.0"
+http.port: 9600
+
+# Pipeline tuning
+# pipeline.workers: auto-detected from CPU count
+pipeline.batch.size: 125
+pipeline.batch.delay: 50
+
+# Disable X-Pack monitoring (reduces noise in dev, re-enable in production
+# if you want Logstash metrics in the Stack Monitoring UI)
+xpack.monitoring.enabled: false
+
+# Logging
+log.level: info
+# log.format: json  # Uncomment for structured logging

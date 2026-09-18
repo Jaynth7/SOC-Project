@@ -1,0 +1,121 @@
+# =============================================================================
+# SOC-Scale SIEM Pipeline — Docker Compose
+# =============================================================================
+# Services: Logstash, Elasticsearch, Kibana
+# Redis:    NOT included — connects to your existing Redis container
+#           on ${REDIS_HOST}:${REDIS_PORT} (default: host.docker.internal:6379)
+#
+# Architecture:
+#   [Your Redis] ──→ Logstash ──→ Elasticsearch ──→ Kibana
+#
+# Usage:
+#   cp .env.example .env        # edit passwords
+#   docker compose up -d        # start the stack
+#   docker compose ps           # verify all healthy
+#   docker compose down -v      # tear down (removes data volumes)
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Elasticsearch — search and analytics engine
+  # ---------------------------------------------------------------------------
+  # Security is enabled (auth required) but HTTP TLS is disabled for dev
+  # simplicity within the Docker network. For production, enable TLS:
+  #   - xpack.security.http.ssl.enabled=true
+  #   - Mount or auto-generate certs, update Logstash/Kibana to use https://
+  # ---------------------------------------------------------------------------
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ES_VERSION:-8.17.0}
+    container_name: soc-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - ELASTIC_PASSWORD=${ELASTIC_PASSWORD}
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    ports:
+      - "${ES_PORT:-9200}:9200"
+    networks:
+      - siem-net
+    mem_limit: 2g
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "curl -s http://localhost:9200/_cluster/health -u elastic:${ELASTIC_PASSWORD} | grep -q '\"status\"'",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Logstash — drains Redis, transforms, indexes into Elasticsearch
+  # ---------------------------------------------------------------------------
+  # Connects to YOUR Redis via host.docker.internal (Docker Desktop) or via
+  # the extra_hosts mapping (Linux). Pipeline config is mounted from
+  # ./logstash/pipeline/logstash.conf
+  # ---------------------------------------------------------------------------
+  logstash:
+    image: docker.elastic.co/logstash/logstash:${LS_VERSION:-8.17.0}
+    container_name: soc-logstash
+    environment:
+      - REDIS_HOST=${REDIS_HOST:-host.docker.internal}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      - ES_USER=${ES_USER:-elastic}
+      - ES_PASSWORD=${ELASTIC_PASSWORD}
+      - LS_JAVA_OPTS=-Xms512m -Xmx512m
+      - xpack.monitoring.enabled=false
+    volumes:
+      - ./logstash/pipeline/:/usr/share/logstash/pipeline/:ro
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+    extra_hosts:
+      # Resolves host.docker.internal on Linux; already available on Docker Desktop
+      - "host.docker.internal:host-gateway"
+    networks:
+      - siem-net
+    mem_limit: 1g
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Kibana — visualization and dashboards
+  # ---------------------------------------------------------------------------
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${KIBANA_VERSION:-8.17.0}
+    container_name: soc-kibana
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=${ES_USER:-elastic}
+      - ELASTICSEARCH_PASSWORD=${ELASTIC_PASSWORD}
+    ports:
+      - "${KIBANA_PORT:-5601}:5601"
+    networks:
+      - siem-net
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+
+# =============================================================================
+# Networks & Volumes
+# =============================================================================
+networks:
+  siem-net:
+    driver: bridge
+    name: soc-siem-net
+
+volumes:
+  es-data:
+    driver: local

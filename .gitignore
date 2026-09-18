@@ -1,0 +1,18 @@
+# Secrets — NEVER commit
+.env
+
+# Persistent data (Docker volumes mount here if using bind mounts)
+redis/data/
+es-data/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
