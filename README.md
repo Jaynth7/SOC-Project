@@ -8,13 +8,13 @@ A Docker Compose project that wires up a scalable SIEM log pipeline using **Redi
 Endpoints (servers, workstations)
         │
         ▼
-  Wazuh Agents              ← You deploy these (Windows/Linux)
+  Wazuh Agents              ← (Windows/Linux)
         │  (AES-encrypted, ports 1514/1515)
         ▼
-  Wazuh Manager              ← You manage this
+  Wazuh Manager              
         │  writes /var/ossec/logs/alerts/alerts.json
         ▼
-  Filebeat                    ← You configure this (see examples/)
+  Filebeat                    
         │  output.redis → RPUSH to list
         ▼
 ┌─────────────────────────────────────────────────────────┐
@@ -67,16 +67,16 @@ curl -s -u elastic:YOUR_ELASTIC_PASSWORD http://localhost:9200/wazuh-alerts-*/_s
 # Create an index pattern for "wazuh-alerts-*" → see your test event in Discover
 ```
 
-## What This Is
+## Current State
 
 - A **transport and indexing layer** for Wazuh security alerts
 - Uses Redis as a **durable buffer** so Logstash/ES downtime doesn't lose events (Filebeat retries)
 - Security defaults baked in: Elasticsearch auth, Redis auth, `noeviction` memory policy
 - Designed to be the backbone you build detection rules and dashboards on top of
 
-## What This Is NOT
+## Future State
 
-- **Not a complete Wazuh deployment.** The Wazuh Manager and Agents are your responsibility — this project picks up *after* alerts are written to `alerts.json`
+- **Complete Wazuh deployment.** The Wazuh Manager and Agents will be configured ,this project picks up *after* alerts are written to `alerts.json`
 - **Not production-hardened out of the box.** TLS within the Docker network is disabled for dev simplicity. Single-node Elasticsearch. No HA or clustering
 - **Not horizontally scalable as-is.** Docker Compose = single host. Kubernetes/Helm is on the roadmap for v2
 - **Not a replacement for Wazuh's built-in indexer.** Wazuh ships its own OpenSearch-based indexer. This project uses the standard Elastic stack instead, which gives you the full Kibana ecosystem
@@ -88,7 +88,7 @@ curl -s -u elastic:YOUR_ELASTIC_PASSWORD http://localhost:9200/wazuh-alerts-*/_s
 | Elasticsearch | `elasticsearch:8.17.0` | Index & search alerts | 9200 |
 | Logstash | `logstash:8.17.0` | Drain Redis, parse, enrich, index | — |
 | Kibana | `kibana:8.17.0` | Dashboards & visualization | 5601 |
-| Redis | *yours, external* | Buffer between Filebeat and Logstash | 6379 |
+| Redis | *local, external* | Buffer between Filebeat and Logstash | 6379 |
 
 ## Why Redis Lists (Not Streams)?
 
