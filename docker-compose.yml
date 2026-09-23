@@ -74,10 +74,9 @@ services:
       - ES_USER=${ES_USER:-elastic}
       - ES_PASSWORD=${ELASTIC_PASSWORD}
       - LS_JAVA_OPTS=-Xms512m -Xmx512m
-      - xpack.monitoring.enabled=false
     volumes:
       - ./logstash/pipeline/:/usr/share/logstash/pipeline/:ro
-      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml
     extra_hosts:
       # Resolves host.docker.internal on Linux; already available on Docker Desktop
       - "host.docker.internal:host-gateway"
