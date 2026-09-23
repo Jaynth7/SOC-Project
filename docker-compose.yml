@@ -46,11 +46,7 @@ services:
         soft: -1
         hard: -1
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "curl -s http://localhost:9200/_cluster/health -u elastic:${ELASTIC_PASSWORD} | grep -q '\"status\"'",
-        ]
+      test: [ "CMD-SHELL", "curl -s http://localhost:9200/_cluster/health -u elastic:${ELASTIC_PASSWORD} | grep -q '\"status\"'" ]
       interval: 30s
       timeout: 10s
       retries: 10
